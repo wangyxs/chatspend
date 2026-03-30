@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ChatSpend - 智能记账助手</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #3B82F6;
+            --success-color: #10B981;
+            --warning-color: #F59E0B;
+            --danger-color: #EF4444;
+            --text-primary: #1F2937;
+            --text-secondary: #6B7280;
+            --text-tertiary: #9CA3AF;
+            --bg-primary: #F9FAFB;
+            --bg-white: #FFFFFF;
+            --border-color: #E5E7EB;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        /* 移动端容器 */
+        .phone-container {
+            max-width: 375px;
+            margin: 0 auto;
+            background: var(--bg-white);
+            min-height: 100vh;
+            position: relative;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 顶部导航栏 */
+        .header {
+            background: var(--bg-white);
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        /* 底部Tab栏 */
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 375px;
+            background: var(--bg-white);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0;
+            z-index: 100;
+        }
+
+        .tab-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab-item.active {
+            color: var(--primary-color);
+        }
+
+        .tab-item.inactive {
+            color: var(--text-tertiary);
+        }
+
+        .tab-icon {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+
+        .tab-label {
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* 内容区域 */
+        .content {
+            padding-bottom: 80px;
+        }
+
+        /* 首页 - 对话界面 */
+        .home-screen {
+            display: block;
+        }
+
+        .chat-container {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* 消息气泡 */
+        .message {
+            display: flex;
+            gap: 8px;
+            max-width: 85%;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+            margin-left: auto;
+        }
+
+        .message.bot {
+            margin-right: auto;
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .avatar.bot {
+            background: var(--success-color);
+        }
+
+        .avatar.user {
+            background: var(--primary-color);
+        }
+
+        .avatar-text {
+            font-size: 16px;
+        }
+
+        .bubble {
+            padding: 12px 16px;
+            border-radius: 18px;
+            position: relative;
+        }
+
+        .bubble.bot {
+            background: var(--bg-white);
+            border-bottom-left-radius: 4;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .bubble.user {
+            background: var(--primary-color);
+            border-bottom-right-radius: 4;
+        }
+
+        .bubble.bot .message-text {
+            color: var(--text-primary);
+        }
+
+        .bubble.user .message-text {
+            color: white;
+        }
+
+        .message-text {
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        /* 交易卡片 */
+        .transaction-card {
+            margin-top: 12px;
+            background: var(--bg-primary);
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .transaction-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .transaction-category {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .category-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .category-name {
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .transaction-amount {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--warning-color);
+        }
+
+        /* 输入框 */
+        .input-container {
+            position: fixed;
+            bottom: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 375px;
+            background: var(--bg-white);
+            border-top: 1px solid var(--border-color);
+            padding: 12px;
+            z-index: 99;
+        }
+
+        .input-wrapper {
+            display: flex;
+            align-items: center;
+            background: var(--bg-primary);
+            border-radius: 24px;
+            padding: 8px 12px;
+            gap: 8px;
+        }
+
+        .input-icon {
+            font-size: 22px;
+            color: var(--text-tertiary);
+            cursor: pointer;
+        }
+
+        .chat-input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            font-size: 16px;
+            outline: none;
+            color: var(--text-primary);
+        }
+
+        .chat-input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .send-button {
+            width: 36px;
+            height: 36px;
+            border-radius: 18px;
+            background: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .send-button:hover {
+            background: #2563EB;
+            transform: scale(1.05);
+        }
+
+        .send-button.inactive {
+            background: var(--border-color);
+        }
+
+        .send-icon {
+            color: white;
+            font-size: 18px;
+        }
+
+        /* 交易列表页 */
+        .transactions-screen {
+            display: none;
+        }
+
+        .time-range-selector {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+            background: var(--bg-white);
+        }
+
+        .time-range-btn {
+            flex: 1;
+            padding: 8px;
+            border-radius: 8px;
+            background: var(--bg-primary);
+            border: none;
+            font-size: 14px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .time-range-btn.active {
+            background: var(--primary-color);
+            color: white;
+            font-weight: 500;
+        }
+
+        .date-group {
+            margin-top: 12px;
+        }
+
+        .date-header {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 16px;
+            background: var(--bg-primary);
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .date-total {
+            color: var(--text-tertiary);
+        }
+
+        .transaction-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--bg-white);
+            border-bottom: 1px solid var(--bg-primary);
+            gap: 12px;
+        }
+
+        .transaction-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .transaction-info {
+            flex: 1;
+        }
+
+        .transaction-title {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .transaction-desc {
+            font-size: 13px;
+            color: var(--text-tertiary);
+            margin-top: 2px;
+        }
+
+        .transaction-amount-small {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        /* 统计页面 */
+        .stats-screen {
+            display: none;
+        }
+
+        .stats-header {
+            padding: 20px;
+            background: var(--bg-white);
+        }
+
+        .stats-title {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .total-card {
+            margin-top: 16px;
+            padding: 16px;
+            background: var(--primary-color);
+            border-radius: 16px;
+            display: flex;
+        }
+
+        .total-item {
+            flex: 1;
+            text-align: center;
+            color: white;
+        }
+
+        .total-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .total-amount {
+            font-size: 24px;
+            font-weight: 700;
+            margin-top: 4px;
+        }
+
+        .total-divider {
+            width: 1px;
+            background: rgba(255, 255, 255, 0.3);
+            margin: 0 16px;
+        }
+
+        .chart-section {
+            margin: 16px;
+            padding: 16px;
+            background: var(--bg-white);
+            border-radius: 16px;
+        }
+
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .bar-chart {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            height: 160px;
+            gap: 8px;
+        }
+
+        .bar-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .bar {
+            width: 100%;
+            max-width: 30px;
+            background: var(--primary-color);
+            border-radius: 4px 4px 0 0;
+            transition: height 0.3s;
+        }
+
+        .bar-value {
+            font-size: 10px;
+            color: var(--text-tertiary);
+            margin-top: 4px;
+        }
+
+        .bar-label {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            margin-top: 8px;
+        }
+
+        .category-section {
+            margin: 16px;
+            padding: 16px;
+            background: var(--bg-white);
+            border-radius: 16px;
+        }
+
+        .category-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--bg-primary);
+        }
+
+        .category-item:last-child {
+            border-bottom: none;
+        }
+
+        .category-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .category-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+        }
+
+        .category-name-text {
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .category-count {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .category-right {
+            text-align: right;
+        }
+
+        .category-amount-text {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .category-percent {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .insight-section {
+            margin: 16px;
+            padding: 16px;
+            background: #FEF3C7;
+            border-radius: 16px;
+        }
+
+        .insight-content {
+            display: flex;
+            gap: 8px;
+        }
+
+        .insight-icon {
+            font-size: 20px;
+        }
+
+        .insight-text {
+            flex: 1;
+            font-size: 14px;
+            color: #92400E;
+            line-height: 1.6;
+        }
+
+        /* 设置页面 */
+        .settings-screen {
+            display: none;
+        }
+
+        .settings-section {
+            margin-top: 16px;
+        }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            margin-left: 20px;
+        }
+
+        .settings-card {
+            background: var(--bg-white);
+            padding: 0 16px;
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--bg-primary);
+        }
+
+        .setting-item:last-child {
+            border-bottom: none;
+        }
+
+        .setting-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .setting-icon {
+            font-size: 22px;
+        }
+
+        .setting-label {
+            font-size: 16px;
+        }
+
+        .setting-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .setting-value {
+            font-size: 14px;
+            color: var(--text-tertiary);
+        }
+
+        /* Switch开关 */
+        .switch {
+            width: 44px;
+            height: 24px;
+            background: var(--border-color);
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .switch.active {
+            background: var(--primary-color);
+        }
+
+        .switch-thumb {
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 10px;
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            transition: left 0.3s;
+        }
+
+        .switch.active .switch-thumb {
+            left: 22px;
+        }
+
+        .settings-footer {
+            text-align: center;
+            padding: 32px;
+            color: var(--text-tertiary);
+        }
+
+        .footer-text {
+            font-size: 14px;
+        }
+
+        .footer-subtext {
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        /* 加载动画 */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px;
+            background: var(--bg-primary);
+        }
+
+        .loading-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 响应式 */
+        @media (min-width: 768px) {
+            body {
+                background: #E5E7EB;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="phone-container">
+        <!-- 首页 - 对话记账 -->
+        <div id="home-screen" class="content home-screen">
+            <div class="header">
+                <div class="header-title">ChatSpend</div>
+            </div>
+
+            <div class="chat-container" id="chat-container">
+                <!-- Bot欢迎消息 -->
+                <div class="message bot">
+                    <div class="avatar bot">
+                        <span class="avatar-text">🤖</span>
+                    </div>
+                    <div class="bubble bot">
+                        <div class="message-text">你好！我是ChatSpend记账助手 👋</div>
+                        <div class="message-text" style="margin-top: 8px;">
+                            你可以这样告诉我你的消费：<br>
+                            • "昨天午饭花了35元"<br>
+                            • "打车去机场花了120"<br>
+                            • "买了件外套299块"
+                        </div>
+                        <div class="message-text" style="margin-top: 8px;">试试看吧！</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 输入框 -->
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <span class="input-icon">🎤</span>
+                    <input type="text" class="chat-input" id="chat-input" placeholder="说说你的消费，如"午饭花了35元"..." />
+                    <span class="input-icon">📷</span>
+                    <div class="send-button" id="send-button" onclick="sendMessage()">
+                        <span class="send-icon">➤</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 交易列表页 -->
+        <div id="transactions-screen" class="content transactions-screen">
+            <div class="header">
+                <div class="header-title">消费记录</div>
+                <div style="display: flex; align-items: baseline; margin-top: 8px;">
+                    <span style="font-size: 14px; color: #6B7280; margin-right: 8px;">总支出</span>
+                    <span style="font-size: 24px; font-weight: 700; color: #3B82F6;">¥1,386.50</span>
+                </div>
+            </div>
+
+            <div class="time-range-selector">
+                <button class="time-range-btn">今天</button>
+                <button class="time-range-btn active">本周</button>
+                <button class="time-range-btn">本月</button>
+                <button class="time-range-btn">今年</button>
+            </div>
+
+            <div class="date-group">
+                <div class="date-header">
+                    <span>今天</span>
+                    <span class="date-total">¥186.00</span>
+                </div>
+                <div class="transaction-item">
+                    <div class="transaction-icon" style="background: #FEF3C7;">🍔</div>
+                    <div class="transaction-info">
+                        <div class="transaction-title">餐饮</div>
+                        <div class="transaction-desc">午饭</div>
+                    </div>
+                    <div class="transaction-amount-small" style="color: #F59E0B;">-¥35.00</div>
+                </div>
+                <div class="transaction-item">
+                    <div class="transaction-icon" style="background: #DBEAFE;">🚗</div>
+                    <div class="transaction-info">
+                        <div class="transaction-title">交通</div>
+                        <div class="transaction-desc">打车回家</div>
+                    </div>
+                    <div class="transaction-amount-small" style="color: #3B82F6;">-¥28.00</div>
+                </div>
+                <div class="transaction-item">
+                    <div class="transaction-icon" style="background: #FCE7F3;">🛒</div>
+                    <div class="transaction-info">
+                        <div class="transaction-title">购物</div>
+                        <div class="transaction-desc">买日用品</div>
+                    </div>
+                    <div class="transaction-amount-small" style="color: #EC4899;">-¥123.00</div>
+                </div>
+            </div>
+
+            <div class="date-group">
+                <div class="date-header">
+                    <span>昨天</span>
+                    <span class="date-total">¥456.00</span>
+                </div>
+                <div class="transaction-item">
+                    <div class="transaction-icon" style="background: #FEF3C7;">🍔</div>
+                    <div class="transaction-info">
+                        <div class="transaction-title">餐饮</div>
+                        <div class="transaction-desc">外卖晚餐</div>
+                    </div>
+                    <div class="transaction-amount-small" style="color: #F59E0B;">-¥56.00</div>
+                </div>
+                <div class="transaction-item">
+                    <div class="transaction-icon" style="background: #F3E8FF;">🎮</div>
+                    <div class="transaction-info">
+                        <div class="transaction-title">娱乐</div>
+                        <div class="transaction-desc">电影票</div>
+                    </div>
+                    <div class="transaction-amount-small" style="color: #8B5CF6;">-¥89.00</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计页面 -->
+        <div id="stats-screen" class="content stats-screen">
+            <div class="stats-header">
+                <div class="stats-title">统计分析</div>
+                <div class="total-card">
+                    <div class="total-item">
+                        <div class="total-label">本月支出</div>
+                        <div class="total-amount">¥1,386.50</div>
+                    </div>
+                    <div class="total-divider"></div>
+                    <div class="total-item">
+                        <div class="total-label">消费笔数</div>
+                        <div class="total-amount">12</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-section">
+                <div class="chart-title">近7日消费趋势</div>
+                <div class="bar-chart">
+                    <div class="bar-item">
+                        <div class="bar-value">28</div>
+                        <div class="bar" style="height: 28px;"></div>
+                        <div class="bar-label">周一</div>
+                    </div>
+                    <div class="bar-item">
+                        <div class="bar-value">156</div>
+                        <div class="bar" style="height: 78px;"></div>
+                        <div class="bar-label">周二</div>
+                    </div>
+                    <div class="bar-item">
+                        <div class="bar-value">89</div>
+                        <div class="bar" style="height: 45px;"></div>
+                        <div class="bar-label">周三</div>
+                    </div>
+                    <div class="bar-item">
+                        <div class="bar-value">234</div>
+                        <div class="bar" style="height: 117px;"></div>
+                        <div class="bar-label">周四</div>
+                    </div>
+                    <div class="bar-item">
+                        <div class="bar-value">67</div>
+                        <div class="bar" style="height: 34px;"></div>
+                        <div class="bar-label">周五</div>
+                    </div>
+                    <div class="bar-item">
+                        <div class="bar-value">312</div>
+                        <div class="bar" style="height: 120px;"></div>
+                        <div class="bar-label">周六</div>
+                    </div>
+                    <div class="bar-item">
+                        <div class="bar-value">186</div>
+                        <div class="bar" style="height: 93px;"></div>
+                        <div class="bar-label">周日</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="category-section">
+                <div class="chart-title">类别分布</div>
+                <div class="category-item">
+                    <div class="category-left">
+                        <div class="category-dot" style="background: #F59E0B;"></div>
+                        <div>
+                            <div class="category-name-text">餐饮</div>
+                            <div class="category-count">5笔</div>
+                        </div>
+                    </div>
+                    <div class="category-right">
+                        <div class="category-amount-text">¥456.00</div>
+                        <div class="category-percent">32.9%</div>
+                    </div>
+                </div>
+                <div class="category-item">
+                    <div class="category-left">
+                        <div class="category-dot" style="background: #3B82F6;"></div>
+                        <div>
+                            <div class="category-name-text">交通</div>
+                            <div class="category-count">3笔</div>
+                        </div>
+                    </div>
+                    <div class="category-right">
+                        <div class="category-amount-text">¥328.00</div>
+                        <div class="category-percent">23.7%</div>
+                    </div>
+                </div>
+                <div class="category-item">
+                    <div class="category-left">
+                        <div class="category-dot" style="background: #EC4899;"></div>
+                        <div>
+                            <div class="category-name-text">购物</div>
+                            <div class="category-count">2笔</div>
+                        </div>
+                    </div>
+                    <div class="category-right">
+                        <div class="category-amount-text">¥298.00</div>
+                        <div class="category-percent">21.5%</div>
+                    </div>
+                </div>
+                <div class="category-item">
+                    <div class="category-left">
+                        <div class="category-dot" style="background: #8B5CF6;"></div>
+                        <div>
+                            <div class="category-name-text">娱乐</div>
+                            <div class="category-count">2笔</div>
+                        </div>
+                    </div>
+                    <div class="category-right">
+                        <div class="category-amount-text">¥189.00</div>
+                        <div class="category-percent">13.6%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="insight-section">
+                <div class="insight-content">
+                    <span class="insight-icon">💡</span>
+                    <div class="insight-text">
+                        本月"餐饮"支出最多，占总消费的32.9%，共5笔。<br><br>
+                        建议关注餐饮类消费，合理规划预算能帮助更好地控制支出。<br><br>
+                        本月消费控制在合理范围内，继续保持！
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 设置页面 -->
+        <div id="settings-screen" class="content settings-screen">
+            <div class="header">
+                <div class="header-title">设置</div>
+            </div>
+
+            <div class="settings-section">
+                <div class="section-title">偏好设置</div>
+                <div class="settings-card">
+                    <div class="setting-item">
+                        <div class="setting-left">
+                            <span class="setting-icon">🌙</span>
+                            <span class="setting-label">深色模式</span>
+                        </div>
+                        <div class="switch" onclick="this.classList.toggle('active')">
+                            <div class="switch-thumb"></div>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-left">
+                            <span class="setting-icon">🔔</span>
+                            <span class="setting-label">消息通知</span>
+                        </div>
+                        <div class="switch active" onclick="this.classList.toggle('active')">
+                            <div class="switch-thumb"></div>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-left">
+                            <span class="setting-icon">🎤</span>
+                            <span class="setting-label">语音输入</span>
+                        </div>
+                        <div class="switch active" onclick="this.classList.toggle('active')">
+                            <div class="switch-thumb"></div>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-left">
+                            <span class="setting-icon">📷</span>
+                            <span class="setting-label">相机识别</span>
+                        </div>
+                        <div class="switch active" onclick="this.classList.toggle('active')">
+                            <div class="switch-thumb"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <div class="section-title">安全与隐私</div>
+                <div class="settings-card">
+                    <div class="setting-item">
+                        <div class="setting-left">
+                            <span class="setting-icon">👆</span>
+                            <span class="setting-label">生物识别</span>
+                        </div>
+                        <div class="switch" onclick="this.classList.toggle('active')">
+                            <div class="switch-thumb"></div>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-left">
+                            <span class="setting-icon">☁️</span>
+                            <span class="setting-label">云端同步</span>
+                        </div>
+                        <div class="switch" onclick="this.classList.toggle('active')">
+                            <div class="switch-thumb"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <div class="section-title">数据管理</div>
+                <div class="settings-card">
+                    <div class="setting-item">
+                        <div class="setting-left">
+                            <span class="setting-icon">📥</span>
+                            <span class="setting-label">导出数据</span>
+                        </div>
+                        <div class="setting-right">
+                            <span class="setting-value">›</span>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-left">
+                            <span class="setting-icon">🗑️</span>
+                            <span class="setting-label">清除本地数据</span>
+                        </div>
+                        <div class="setting-right">
+                            <span class="setting-value">›</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <div class="section-title">关于</div>
+                <div class="settings-card">
+                    <div class="setting-item">
+                        <div class="setting-left">
+                            <span class="setting-icon">ℹ️</span>
+                            <span class="setting-label">版本</span>
+                        </div>
+                        <div class="setting-right">
+                            <span class="setting-value">1.0.0</span>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-left">
+                            <span class="setting-icon">📄</span>
+                            <span class="setting-label">用户协议</span>
+                        </div>
+                        <div class="setting-right">
+                            <span class="setting-value">›</span>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-left">
+                            <span class="setting-icon">🔒</span>
+                            <span class="setting-label">隐私政策</span>
+                        </div>
+                        <div class="setting-right">
+                            <span class="setting-value">›</span>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-left">
+                            <span class="setting-icon">⭐</span>
+                            <span class="setting-label">给我们评分</span>
+                        </div>
+                        <div class="setting-right">
+                            <span class="setting-value">›</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-footer">
+                <div class="footer-text">ChatSpend v1.0.0</div>
+                <div class="footer-subtext">让记账更简单</div>
+            </div>
+        </div>
+
+        <!-- 底部Tab栏 -->
+        <div class="tab-bar">
+            <div class="tab-item active" onclick="switchTab('home')">
+                <div class="tab-icon">💬</div>
+                <div class="tab-label">记账</div>
+            </div>
+            <div class="tab-item inactive" onclick="switchTab('transactions')">
+                <div class="tab-icon">📋</div>
+                <div class="tab-label">记录</div>
+            </div>
+            <div class="tab-item inactive" onclick="switchTab('stats')">
+                <div class="tab-icon">📊</div>
+                <div class="tab-label">统计</div>
+            </div>
+            <div class="tab-item inactive" onclick="switchTab('settings')">
+                <div class="tab-icon">⚙️</div>
+                <div class="tab-label">设置</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab切换
+        function switchTab(tab) {
+            // 隐藏所有页面
+            document.getElementById('home-screen').style.display = 'none';
+            document.getElementById('transactions-screen').style.display = 'none';
+            document.getElementById('stats-screen').style.display = 'none';
+            document.getElementById('settings-screen').style.display = 'none';
+
+            // 重置所有Tab样式
+            document.querySelectorAll('.tab-item').forEach(item => {
+                item.classList.remove('active');
+                item.classList.add('inactive');
+            });
+
+            // 显示对应页面
+            const tabItems = document.querySelectorAll('.tab-item');
+            switch(tab) {
+                case 'home':
+                    document.getElementById('home-screen').style.display = 'block';
+                    tabItems[0].classList.add('active');
+                    tabItems[0].classList.remove('inactive');
+                    break;
+                case 'transactions':
+                    document.getElementById('transactions-screen').style.display = 'block';
+                    tabItems[1].classList.add('active');
+                    tabItems[1].classList.remove('inactive');
+                    break;
+                case 'stats':
+                    document.getElementById('stats-screen').style.display = 'block';
+                    tabItems[2].classList.add('active');
+                    tabItems[2].classList.remove('inactive');
+                    break;
+                case 'settings':
+                    document.getElementById('settings-screen').style.display = 'block';
+                    tabItems[3].classList.add('active');
+                    tabItems[3].classList.remove('inactive');
+                    break;
+            }
+        }
+
+        // 发送消息
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            // 添加用户消息
+            const container = document.getElementById('chat-container');
+            const userMsg = document.createElement('div');
+            userMsg.className = 'message user';
+            userMsg.innerHTML = `
+                <div class="avatar user">
+                    <span class="avatar-text">👤</span>
+                </div>
+                <div class="bubble user">
+                    <div class="message-text">${text}</div>
+                </div>
+            `;
+            container.appendChild(userMsg);
+
+            // 清空输入
+            input.value = '';
+
+            // 模拟解析结果
+            setTimeout(() => {
+                const parsed = parseText(text);
+                const botMsg = document.createElement('div');
+                botMsg.className = 'message bot';
+                botMsg.innerHTML = `
+                    <div class="avatar bot">
+                        <span class="avatar-text">🤖</span>
+                    </div>
+                    <div class="bubble bot">
+                        <div class="message-text">✅ 已成功记录！</div>
+                        <div class="transaction-card">
+                            <div class="transaction-header">
+                                <div class="transaction-category">
+                                    <div class="category-icon" style="background: ${parsed.color}20;">
+                                        ${parsed.icon}
+                                    </div>
+                                    <div>
+                                        <div class="category-name">${parsed.category}</div>
+                                    </div>
+                                </div>
+                                <div class="transaction-amount" style="color: ${parsed.color};">
+                                    -¥${parsed.amount.toFixed(2)}
+                                </div>
+                            </div>
+                            <div style="font-size: 14px; color: #4B5563; margin-top: 8px; padding-left: 50px;">
+                                ${parsed.description}
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-top: 8px; padding-left: 50px;">
+                                <span style="font-size: 12px; color: #9CA3AF;">📅 ${parsed.date}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(botMsg);
+
+                // 滚动到底部
+                container.scrollTop = container.scrollHeight;
+            }, 500);
+
+            // 滚动到底部
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // 简单的文本解析
+        function parseText(text) {
+            // 提取金额
+            const amountMatch = text.match(/(\d+(?:\.\d{1,2})?)/);
+            const amount = amountMatch ? parseFloat(amountMatch[1]) : 0;
+
+            // 类别推断
+            const categories = {
+                '餐饮': { icon: '🍔', color: '#F59E0B', keywords: ['饭', '餐', '吃', '外卖', '午饭', '晚饭', '早餐'] },
+                '交通': { icon: '🚗', color: '#3B82F6', keywords: ['打车', '滴滴', '地铁', '公交', '加油'] },
+                '购物': { icon: '🛒', color: '#EC4899', keywords: ['买', '购', '淘宝', '京东', '超市'] },
+                '娱乐': { icon: '🎮', color: '#8B5CF6', keywords: ['电影', '游戏', '唱歌', 'KTV'] },
+                '日用': { icon: '🏠', color: '#10B981', keywords: ['水电', '话费', '网费', '理发'] }
+            };
+
+            let result = { category: '其他', icon: '📦', color: '#6B7280', amount, description: text, date: '今天' };
+
+            for (const [cat, config] of Object.entries(categories)) {
+                if (config.keywords.some(k => text.includes(k))) {
+                    result.category = cat;
+                    result.icon = config.icon;
+                    result.color = config.color;
+                    break;
+                }
+            }
+
+            return result;
+        }
+
+        // 回车发送
+        document.getElementById('chat-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // 时间范围按钮
+        document.querySelectorAll('.time-range-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.time-range-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>
