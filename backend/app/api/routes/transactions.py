@@ -11,6 +11,7 @@ from loguru import logger
 from app.core import get_db
 from app.models import Transaction
 from app.agents import RecordingAgent
+from app.agents.orchestrator import OrchestratorAgent
 from app.api.schemas import (
     TransactionCreate,
     TransactionResponse,
@@ -21,6 +22,43 @@ from app.api.schemas import (
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 recording_agent = RecordingAgent()
+orchestrator = OrchestratorAgent()
+
+
+@router.post("/chat")
+async def chat_with_agent(
+    request: TransactionCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    统一对话入口 - Orchestrator Agent处理
+    
+    支持多种意图：
+    - 记账：直接输入消费描述
+    - 查询：询问消费记录
+    - 分析：请求消费分析
+    - 帮助：询问使用方法
+    """
+    try:
+        logger.info(f"Chat request: {request.input}")
+        
+        context = {
+            "current_time": datetime.now(),
+            "db_session": db,
+            **(request.context or {})
+        }
+        
+        # 使用Orchestrator处理
+        result = await orchestrator.process(request.input, context)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Chat failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 
 @router.post("/parse", response_model=ParseResponse)
