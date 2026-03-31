@@ -17,10 +17,11 @@ from typing import Dict, List, Any, Optional, Literal
 from enum import Enum
 from datetime import datetime
 import re
-from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage, SystemMessage
+import json
+from loguru import logger
 
-from app.config.settings import settings
+from app.config import settings
+from app.core.llm import get_llm_client
 
 
 class IntentType(str, Enum):
@@ -39,11 +40,9 @@ class OrchestratorAgent:
     """Orchestrator Agent - 总指挥"""
     
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model=settings.openai_model,
-            temperature=0.1,
-            openai_api_key=settings.openai_api_key
-        ) if settings.openai_api_key else None
+        """初始化Orchestrator Agent"""
+        # 获取LLM客户端
+        self.llm_client = get_llm_client() if settings.OPENAI_API_KEY else None
         
         # 意图识别规则（无需LLM的快速识别）
         self.intent_rules = {
@@ -126,7 +125,7 @@ class OrchestratorAgent:
         intent, confidence = self._rule_based_intent(user_input)
         
         # 2. 如果置信度不够，使用LLM
-        if confidence < 0.8 and self.llm:
+        if confidence < 0.8 and self.llm_client:
             llm_result = await self._llm_based_intent(user_input, context)
             if llm_result["confidence"] > confidence:
                 return llm_result
@@ -168,7 +167,8 @@ class OrchestratorAgent:
     
     async def _llm_based_intent(self, user_input: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """基于LLM的意图识别"""
-        if not self.llm:
+        if not self.llm_client:
+            logger.warning("LLM客户端未初始化，跳过LLM意图识别")
             return {"intent": IntentType.UNKNOWN, "confidence": 0.0, "entities": {}}
         
         system_prompt = """你是一个意图识别专家。分析用户的输入，识别其意图。
@@ -192,18 +192,22 @@ class OrchestratorAgent:
     "reasoning": "推理过程"
 }"""
 
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=f"用户输入：{user_input}")
-        ]
-        
         try:
-            response = await self.llm.ainvoke(messages)
-            import json
-            result = json.loads(response.content)
-            result["intent"] = IntentType(result.get("intent", "unknown"))
+            # 使用LLM客户端调用
+            result = await self.llm_client.parse_json(
+                prompt=f"用户输入：{user_input}",
+                system_prompt=system_prompt
+            )
+            
+            # 转换意图类型
+            intent_str = result.get("intent", "unknown")
+            result["intent"] = IntentType(intent_str)
+            
+            logger.info(f"LLM意图识别结果: {result}")
             return result
+            
         except Exception as e:
+            logger.error(f"LLM意图识别失败: {e}")
             return {"intent": IntentType.UNKNOWN, "confidence": 0.0, "entities": {}}
     
     def _extract_entities(self, user_input: str, intent: IntentType) -> Dict[str, Any]:

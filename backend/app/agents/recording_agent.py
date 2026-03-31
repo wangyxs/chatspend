@@ -6,9 +6,9 @@ from datetime import datetime, timedelta
 import re
 import json
 from loguru import logger
-from openai import AsyncOpenAI
 
-from app.config import settings
+from app.core.config import settings
+from app.core.llm import get_llm_client, LLMClient
 from app.models import Transaction
 
 
@@ -25,7 +25,9 @@ class RecordingAgent:
     """
     
     def __init__(self):
-        self.openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        """初始化Recording Agent"""
+        # 获取LLM客户端
+        self.llm_client = get_llm_client() if settings.OPENAI_API_KEY else None
         self.category_rules = self._load_category_rules()
     
     def _load_category_rules(self) -> Dict[str, Any]:
@@ -321,14 +323,12 @@ class RecordingAgent:
 只返回JSON数组,不要其他说明文字。"""
 
         try:
-            response = await self.openai_client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+            # 使用LLM客户端调用
+            result_text = await self.llm_client.chat_completion(
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                max_tokens=500,
+                max_tokens=500
             )
-            
-            result_text = response.choices[0].message.content.strip()
             
             # Parse JSON
             transactions = json.loads(result_text)

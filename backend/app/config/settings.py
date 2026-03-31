@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # OpenAI
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_MODEL: str = "gpt-4-turbo-preview"
+    OPENAI_BASE_URL: Optional[str] = None  # 支持自定义API端点
+    OPENAI_TEMPERATURE: float = 0.7
+    OPENAI_MAX_TOKENS: int = 2000
     
     # Security
     SECRET_KEY: str = "your-secret-key-change-in-production"

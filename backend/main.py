@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from loguru import logger
 
 from app.config import settings
-from app.core import init_db
+from app.core import init_db, init_llm_client
 from app.api import api_router
 
 
@@ -23,6 +23,9 @@ async def lifespan(app: FastAPI):
     # Initialize database
     await init_db()
     logger.info("Database initialized")
+    
+    # Initialize LLM client
+    init_llm_client()
     
     yield
     
