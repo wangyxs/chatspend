@@ -62,6 +62,19 @@ class APIService {
   // ==================== 交易接口 ====================
   
   /**
+   * 统一对话接口（后端驱动渲染）
+   * @param input 用户输入
+   * @param context 上下文信息
+   */
+  async chat(input: string, context?: any): Promise<any> {
+    const response = await this.client.post('/transactions/chat', {
+      input,
+      context
+    });
+    return response.data;
+  }
+  
+  /**
    * 解析自然语言输入
    * @param input 用户输入的文本
    */

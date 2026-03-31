@@ -423,32 +423,129 @@ class OrchestratorAgent:
         context: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
-        处理用户输入的主入口
+        处理用户输入的主入口 - 后端驱动渲染版本
         
         实现Plan-Execute框架：
         1. Plan: 分析意图，规划任务
         2. Execute: 路由到Agent执行
-        3. Respond: 生成友好回复
+        3. Respond: 使用ResponseBuilder生成UI响应
+        
+        参考王自如AI产品设计理念：
+        - 后端决定展示什么组件
+        - 前端只负责渲染
+        - 无缝对话体验
         """
+        from app.agents.response_builder import ResponseBuilder
+        
+        # 初始化ResponseBuilder
+        builder = ResponseBuilder()
+        
         # Step 1: 意图识别
         intent_result = await self.analyze_intent(user_input, context)
+        intent = intent_result["intent"]
         
         # Step 2: 路由执行
         agent_result = await self.route_to_agent(
-            intent_result["intent"],
+            intent,
             user_input,
             intent_result["entities"],
             context
         )
         
-        # Step 3: 生成回复
-        response = {
-            "intent": intent_result["intent"].value,
-            "confidence": intent_result["confidence"],
-            "success": agent_result.get("success", False),
-            "message": agent_result.get("message", ""),
-            "data": agent_result.get("data"),
-            "requires_confirmation": agent_result.get("requires_confirmation", False),
-        }
+        # Step 3: 使用ResponseBuilder构建UI响应
+        if intent == IntentType.RECORD:
+            # 记账成功 -> 展示交易卡片
+            if agent_result.get("success") and "transaction" in agent_result:
+                response = builder.build_transaction_created_response(
+                    agent_result["transaction"]
+                )
+            else:
+                response = builder.build_error_response(
+                    agent_result.get("message", "记账失败")
+                )
         
-        return response
+        elif intent == IntentType.QUERY:
+            # 查询结果 -> 展示摘要卡片
+            if agent_result.get("success") and "data" in agent_result:
+                response = builder.build_summary_response(
+                    agent_result["data"],
+                    period=intent_result["entities"].get("time_range", "本月")
+                )
+            else:
+                response = builder.build_error_response(
+                    agent_result.get("message", "查询失败")
+                )
+        
+        elif intent == IntentType.ANALYZE:
+            # 分析结果 -> 展示洞察卡片和图表
+            if agent_result.get("success"):
+                components = []
+                
+                # 如果有洞察
+                if "insights" in agent_result.get("data", {}):
+                    for insight in agent_result["data"]["insights"]:
+                        response = builder.build_insight_response(
+                            insight_type=insight.get("type", "trend"),
+                            title=insight.get("title", ""),
+                            content=insight.get("content", "")
+                        )
+                        components.extend(response.components)
+                
+                # 如果有趋势数据
+                if "trend" in agent_result.get("data", {}):
+                    response = builder.build_trend_chart_response(
+                        agent_result["data"]["trend"]
+                    )
+                    components.extend(response.components)
+                
+                response = ChatResponse(
+                    success=True,
+                    message=agent_result.get("message", "分析完成"),
+                    components=components,
+                    conversation_id=builder.conversation_id
+                )
+            else:
+                response = builder.build_error_response(
+                    agent_result.get("message", "分析失败")
+                )
+        
+        elif intent == IntentType.BUDGET:
+            # 预算状态 -> 展示预算卡片
+            if agent_result.get("success") and "budgets" in agent_result:
+                response = builder.build_budget_status_response(
+                    agent_result["budgets"]
+                )
+            elif agent_result.get("success") and "budget" in agent_result:
+                # 单个预算设置成功
+                response = builder.build_text_response(
+                    agent_result.get("message", "预算设置成功"),
+                    suggested_replies=["查看预算状态", "设置其他预算"]
+                )
+            else:
+                response = builder.build_error_response(
+                    agent_result.get("message", "预算操作失败")
+                )
+        
+        elif intent == IntentType.HELP:
+            # 帮助信息 -> 纯文本 + 快捷操作
+            response = builder.build_text_response(
+                self._get_help_message(),
+                suggested_replies=["午饭花了35元", "这个月花了多少", "分析我的消费"]
+            )
+        
+        elif intent == IntentType.FEEDBACK:
+            # 反馈确认
+            response = builder.build_text_response(
+                "感谢反馈！我会学习并改进。",
+                suggested_replies=["继续记账", "查看记录"]
+            )
+        
+        else:
+            # 未知意图 -> 引导用户
+            response = builder.build_text_response(
+                "抱歉，我不太理解你的意思。试试说'午饭花了35元'或'这个月花了多少'",
+                suggested_replies=["午饭花了35元", "这个月花了多少", "你能做什么"]
+            )
+        
+        # 返回字典格式（兼容旧API）
+        return response.model_dump()
