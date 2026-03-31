@@ -36,16 +36,26 @@
 ```bash
 cd backend
 
-# 安装依赖
-pip install -r requirements.txt
+# 安装核心依赖
+pip install aiosqlite openai pydantic-settings loguru sqlalchemy fastapi uvicorn
 
 # 配置环境变量
 cp .env.example .env
-# 编辑 .env 添加你的 OPENAI_API_KEY
+# 编辑 .env 配置你的API密钥
+
+# 配置示例（使用智谱AI GLM-4）
+# OPENAI_API_KEY=your-api-key
+# OPENAI_MODEL=glm-4-plus
+# OPENAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4/
 
 # 启动服务
 python main.py
 ```
+
+**支持的LLM提供商**：
+- 智谱AI（GLM-4-Plus）- 推荐
+- OpenAI（GPT-4）
+- 其他兼容OpenAI API的服务
 
 ### 移动端
 
@@ -99,8 +109,9 @@ ChatSpend/
 └── 开发进度报告.md              # MVP进度报告
 ```
 
-## 🎯 MVP功能 (Phase 1)
+## 📅 开发路线
 
+### ✅ Phase 1: MVP开发 (已完成)
 - [x] 自然语言记账
 - [x] SQLite本地存储
 - [x] 交易列表展示
@@ -108,30 +119,36 @@ ChatSpend/
 - [x] 设置页面
 - [x] 离线模式支持
 
-## 📅 开发路线
+### ✅ Phase 2: 智能化增强 (已完成)
+- [x] 编排器Agent开发
+- [x] 意图识别与路由
+- [x] 智能分类优化
+- [x] 时间推理增强
+- [x] Analysis Agent开发
+- [x] Budget Agent开发
+- [x] Reminder Agent开发
 
-### Phase 2: 智能化增强 (2周)
-- [ ] 编排器Agent开发
-- [ ] 意图识别与路由
-- [ ] 智能分类优化
-- [ ] 时间推理增强
+### ✅ Phase 3: 交互重构 (已完成)
+- [x] 后端驱动渲染架构
+- [x] 10种标准化UI组件
+- [x] 薄客户端前端设计
+- [x] LLM集成（智谱AI GLM-4-Plus）
 
-### Phase 3: 分析与预算 (2周)
-- [ ] Analysis Agent完善
-- [ ] Budget Agent开发
-- [ ] 可视化图表
-- [ ] 消费洞察生成
+### 🚧 Phase 4: 完善图表与优化 (进行中)
+- [ ] 消费趋势图（折线图）
+- [ ] 消费对比图（柱状图）
+- [ ] 性能优化
+- [ ] 动画效果
 
-### Phase 4: 多模态与提醒 (2周)
+### 📝 Phase 5: 多模态与提醒 (待开始)
 - [ ] 语音识别集成
 - [ ] 图片识别集成
-- [ ] Reminder Agent开发
 - [ ] 定期汇报功能
+- [ ] 异常提醒功能
 
-### Phase 5: 云端与优化 (2周)
+### 📝 Phase 6: 云端与发布 (待开始)
 - [ ] 云端存储集成
 - [ ] 数据同步机制
-- [ ] 性能优化
 - [ ] 应用商店上架
 
 ## 🛠️ 技术栈
