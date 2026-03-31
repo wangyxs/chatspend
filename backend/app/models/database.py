@@ -1,7 +1,7 @@
 """
 Database models and session management
 """
-from sqlalchemy import Column, String, Float, Boolean, DateTime, Text, JSON
+from sqlalchemy import Column, String, Float, Boolean, DateTime, Text, JSON, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func

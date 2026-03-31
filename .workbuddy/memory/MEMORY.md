@@ -28,10 +28,11 @@
   - 避免工具层复杂业务逻辑
 
 ### 技术栈
-- **后端**: Python 3.11+ / FastAPI / LangChain或AutoGen / SQLAlchemy
+- **后端**: Python 3.11+ / FastAPI / SQLAlchemy / OpenAI API
 - **移动端**: React Native 0.73+ / Expo / TypeScript 5.0+ / React Navigation 6.x / Zustand
 - **数据库**: SQLite（本地）+ PostgreSQL（云端）
 - **AI**: OpenAI GPT-4 / Whisper / GPT-4 Vision
+- **LLM客户端**: 自研封装（app/core/llm.py），支持自定义API端点
 - **部署**: 
   - iOS: App Store Connect + TestFlight
   - Android: Google Play + 国内应用商店（应用宝、华为、小米、OPPO、vivo）
@@ -116,33 +117,45 @@
 - ✅ API服务封装
 - ✅ 离线模式支持
 
-### Phase 2: 智能化增强（2周）
-- 编排器Agent开发
-- 意图识别与路由
-- 智能分类模块
-- 时间推理模块
-- Plan-Execute框架实现
+### Phase 2: 智能化增强 ✅ 已完成 (2026-03-30)
+- ✅ 编排器Agent开发
+- ✅ 意图识别与路由
+- ✅ 智能分类模块
+- ✅ 时间推理模块
+- ✅ Plan-Execute框架实现
+- ✅ Analysis Agent开发
+- ✅ Budget Agent开发
+- ✅ Reminder Agent开发
 
-### Phase 3: 分析与预算（2周）
-- Analysis Agent开发
-- Budget Agent开发
-- 消费洞察生成
-- 可视化图表
-- 报表导出
+### Phase 3: 交互重构 ✅ 已完成 (2026-03-31)
+参考王自如AI产品设计理念：
+- ✅ 后端驱动渲染架构
+- ✅ 10种标准化UI组件
+- ✅ 薄客户端前端设计
+- ✅ 无缝对话体验
+- ✅ UIComponentRenderer组件渲染器
+- ✅ Orchestrator集成ResponseBuilder
+- ✅ 图表组件（饼图）
+- ✅ LLM集成（智谱AI GLM-4-Plus）
 
-### Phase 4: 多模态与提醒（2周）
-- 语音识别集成
-- 图片识别集成
-- Reminder Agent开发
-- 定期汇报功能
-- 异常提醒功能
+### Phase 4: 完善图表与优化（进行中）
+- [ ] 消费趋势图（折线图）
+- [ ] 消费对比图（柱状图）
+- [ ] 性能优化
+- [ ] 动画效果
 
-### Phase 5: 云端与优化（2周）
-- 云端存储集成
-- 数据同步机制
-- 性能优化
-- 用户体验优化
-- 完整测试
+### Phase 5: 多模态与提醒（待开始）
+- [ ] 语音识别集成
+- [ ] 图片识别集成
+- [ ] 定期汇报功能
+- [ ] 异常提醒功能
+
+### Phase 6: 云端与发布（待开始）
+- [ ] 云端存储集成
+- [ ] 数据同步机制
+- [ ] 性能优化
+- [ ] 用户体验优化
+- [ ] 完整测试
 
 ## 重要文档
 - `技术方案.md` - 完整技术方案和架构设计（含移动应用架构和应用商店上架流程）
