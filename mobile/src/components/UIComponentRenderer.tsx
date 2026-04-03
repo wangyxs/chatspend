@@ -1,7 +1,7 @@
 /**
  * UI组件渲染器
  * 
- * 参考王自如AI产品的薄客户端架构：
+ * 参考优质AI产品的薄客户端架构：
  * - 后端决定展示什么组件
  * - 前端只负责渲染
  * - 组件化、可复用
@@ -15,7 +15,7 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
-import { PieChart } from 'react-native-chart-kit';
+import { PieChart, LineChart, BarChart } from 'react-native-chart-kit';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -287,15 +287,25 @@ function renderListCard(data: { title: string; items: TransactionCardData[]; has
 }
 
 function renderChartCard(data: ChartCardData) {
-  if (data.chart_type === 'pie') {
-    const chartData = {
-      labels: data.data.map(d => d.label),
-      datasets: [{
-        data: data.data.map(d => d.value),
-        colors: data.data.map((d, i) => () => d.color || getChartColor(i)),
-      }],
-    };
+  const chartConfig = {
+    backgroundColor: '#FFFFFF',
+    backgroundGradientFrom: '#FFFFFF',
+    backgroundGradientTo: '#FFFFFF',
+    decimalPlaces: 0,
+    color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+    style: { borderRadius: 12 },
+    propsForDots: {
+      r: '5',
+      strokeWidth: '2',
+      stroke: '#3B82F6',
+    },
+    propsForBackgroundLines: {
+      stroke: '#F3F4F6',
+    },
+  };
 
+  if (data.chart_type === 'pie') {
     return (
       <View style={[styles.card, styles.chartCard]}>
         <Text style={styles.chartTitle}>{data.title}</Text>
@@ -304,14 +314,12 @@ function renderChartCard(data: ChartCardData) {
             name: d.label,
             population: d.value,
             color: d.color || getChartColor(i),
-            legendFontColor: '#7F7F7F',
+            legendFontColor: '#6B7280',
             legendFontSize: 12,
           }))}
           width={screenWidth - 64}
-          height={220}
-          chartConfig={{
-            color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-          }}
+          height={200}
+          chartConfig={chartConfig}
           accessor="population"
           backgroundColor="transparent"
           paddingLeft="15"
@@ -321,7 +329,67 @@ function renderChartCard(data: ChartCardData) {
     );
   }
 
-  // 其他图表类型待实现
+  if (data.chart_type === 'line') {
+    const labels = data.data.map(d => d.label);
+    const values = data.data.map(d => d.value);
+    return (
+      <View style={[styles.card, styles.chartCard]}>
+        <Text style={styles.chartTitle}>{data.title}</Text>
+        {data.y_axis_label && (
+          <Text style={styles.chartAxisLabel}>{data.y_axis_label}</Text>
+        )}
+        <LineChart
+          data={{
+            labels,
+            datasets: [{ data: values.length > 0 ? values : [0] }],
+          }}
+          width={screenWidth - 64}
+          height={200}
+          chartConfig={chartConfig}
+          bezier
+          style={styles.chartStyle}
+          withInnerLines={true}
+          withOuterLines={false}
+          withDots={true}
+          withShadow={false}
+        />
+        {data.x_axis_label && (
+          <Text style={[styles.chartAxisLabel, { textAlign: 'center', marginTop: 4 }]}>
+            {data.x_axis_label}
+          </Text>
+        )}
+      </View>
+    );
+  }
+
+  if (data.chart_type === 'bar') {
+    const labels = data.data.map(d => d.label);
+    const values = data.data.map(d => d.value);
+    return (
+      <View style={[styles.card, styles.chartCard]}>
+        <Text style={styles.chartTitle}>{data.title}</Text>
+        <BarChart
+          data={{
+            labels,
+            datasets: [{ data: values.length > 0 ? values : [0] }],
+          }}
+          width={screenWidth - 64}
+          height={200}
+          chartConfig={{
+            ...chartConfig,
+            color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
+          }}
+          style={styles.chartStyle}
+          showValuesOnTopOfBars={true}
+          withInnerLines={true}
+          yAxisLabel="¥"
+          yAxisSuffix=""
+          fromZero
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.card, styles.chartCard]}>
       <Text style={styles.chartTitle}>{data.title}</Text>
@@ -633,6 +701,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
     marginBottom: 12,
+  },
+  chartAxisLabel: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginBottom: 4,
+  },
+  chartStyle: {
+    borderRadius: 8,
+    marginLeft: -8,
   },
   chartPlaceholder: {
     fontSize: 14,

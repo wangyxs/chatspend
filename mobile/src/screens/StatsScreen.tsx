@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,19 +6,20 @@ import {
   ScrollView,
   Dimensions,
   RefreshControl,
-  ActivityIndicator,
+  Animated,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
 
 import { useTransactionStore } from '@/stores/transactionStore';
 import { localDB } from '@/services/storage';
 import { CategoryBreakdown, DailySpending } from '@/types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CHART_WIDTH = SCREEN_WIDTH - 40;
+const CHART_WIDTH = SCREEN_WIDTH - 48;
 
-// 类别颜色
 const CATEGORY_COLORS: Record<string, string> = {
   '餐饮': '#F59E0B',
   '交通': '#3B82F6',
@@ -32,92 +33,166 @@ const CATEGORY_COLORS: Record<string, string> = {
   '其他': '#6B7280',
 };
 
+const CHART_CONFIG = {
+  backgroundColor: '#FFFFFF',
+  backgroundGradientFrom: '#FFFFFF',
+  backgroundGradientTo: '#FFFFFF',
+  decimalPlaces: 0,
+  color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
+  labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`,
+  style: { borderRadius: 12 },
+  propsForDots: { r: '4', strokeWidth: '2', stroke: '#3B82F6' },
+  propsForBackgroundLines: { stroke: '#F3F4F6', strokeDasharray: '' },
+};
+
+// ============ 骨架屏组件 ============
+function SkeletonBlock({ width, height, style }: { width: number | string; height: number; style?: any }) {
+  const opacity = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [opacity]);
+
+  return (
+    <Animated.View
+      style={[
+        { width, height, backgroundColor: '#E5E7EB', borderRadius: 8, opacity },
+        style,
+      ]}
+    />
+  );
+}
+
+function StatsSkeleton() {
+  return (
+    <ScrollView style={{ flex: 1, backgroundColor: '#F9FAFB' }} scrollEnabled={false}>
+      {/* Header */}
+      <View style={styles.header}>
+        <SkeletonBlock width={120} height={28} />
+        <View style={[styles.totalCard, { backgroundColor: '#E5E7EB' }]}>
+          <SkeletonBlock width={80} height={16} style={{ marginBottom: 8 }} />
+          <SkeletonBlock width={120} height={28} />
+        </View>
+      </View>
+      {/* Chart */}
+      <View style={styles.section}>
+        <SkeletonBlock width={140} height={20} style={{ marginBottom: 16 }} />
+        <SkeletonBlock width={CHART_WIDTH} height={180} />
+      </View>
+      {/* Category */}
+      <View style={styles.section}>
+        <SkeletonBlock width={100} height={20} style={{ marginBottom: 16 }} />
+        {[1, 2, 3, 4].map(i => (
+          <View key={i} style={styles.categoryItem}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <SkeletonBlock width={12} height={12} style={{ borderRadius: 6, marginRight: 12 }} />
+              <SkeletonBlock width={60} height={14} />
+            </View>
+            <SkeletonBlock width={70} height={14} />
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+// ============ 主组件 ============
+type TabType = 'week' | 'month';
+
 export default function StatsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabType>('month');
   const [categoryBreakdown, setCategoryBreakdown] = useState<CategoryBreakdown[]>([]);
   const [dailySpending, setDailySpending] = useState<DailySpending[]>([]);
+  const [weeklyComparison, setWeeklyComparison] = useState<{ label: string; amount: number }[]>([]);
   const [totalSpent, setTotalSpent] = useState(0);
+  const [transactionCount, setTransactionCount] = useState(0);
 
-  const { transactions, setTransactions } = useTransactionStore();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // 加载统计数据
+  const { setTransactions } = useTransactionStore();
+
   const loadStats = useCallback(async () => {
     try {
-      setLoading(true);
-
-      // 获取本月数据
       const now = new Date();
-      const end = now.toISOString().split('T')[0];
-      const start = new Date(now.setDate(1)).toISOString().split('T')[0];
 
-      // 加载交易
-      const data = await localDB.getTransactionsByDate(start, end);
-      setTransactions(data.reverse());
+      // 本月数据
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+        .toISOString().split('T')[0];
+      const monthEnd = now.toISOString().split('T')[0];
+      const monthData = await localDB.getTransactionsByDate(monthStart, monthEnd);
+      setTransactions(monthData.reverse());
 
-      // 计算类别统计
-      const categoryMap = new Map<string, { amount: number; count: number }>();
       let total = 0;
-
-      data.forEach((t) => {
+      const categoryMap = new Map<string, { amount: number; count: number }>();
+      monthData.forEach((t) => {
         total += t.amount;
-        const current = categoryMap.get(t.category) || { amount: 0, count: 0 };
-        categoryMap.set(t.category, {
-          amount: current.amount + t.amount,
-          count: current.count + 1,
-        });
+        const c = categoryMap.get(t.category) || { amount: 0, count: 0 };
+        categoryMap.set(t.category, { amount: c.amount + t.amount, count: c.count + 1 });
       });
-
       setTotalSpent(total);
+      setTransactionCount(monthData.length);
 
-      // 转换为数组并计算百分比
       const breakdown: CategoryBreakdown[] = Array.from(categoryMap.entries())
-        .map(([category, data]) => ({
+        .map(([category, d]) => ({
           category,
-          amount: data.amount,
-          count: data.count,
-          percentage: total > 0 ? (data.amount / total) * 100 : 0,
+          amount: d.amount,
+          count: d.count,
+          percentage: total > 0 ? (d.amount / total) * 100 : 0,
         }))
         .sort((a, b) => b.amount - a.amount);
-
       setCategoryBreakdown(breakdown);
 
-      // 计算每日消费（最近7天）
-      const dailyMap = new Map<string, { amount: number; count: number }>();
-      const last7Days: Date[] = [];
-      for (let i = 0; i < 7; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
-        last7Days.push(date);
-        dailyMap.set(dateStr, { amount: 0, count: 0 });
+      // 近7日趋势
+      const dailyMap = new Map<string, number>();
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        dailyMap.set(d.toISOString().split('T')[0], 0);
       }
-
-      data.forEach((t) => {
+      monthData.forEach((t) => {
         if (dailyMap.has(t.transactionDate)) {
-          const current = dailyMap.get(t.transactionDate)!;
-          dailyMap.set(t.transactionDate, {
-            amount: current.amount + t.amount,
-            count: current.count + 1,
-          });
+          dailyMap.set(t.transactionDate, (dailyMap.get(t.transactionDate) || 0) + t.amount);
         }
       });
-
       const daily: DailySpending[] = Array.from(dailyMap.entries())
-        .map(([date, data]) => ({
+        .map(([date, amount]) => ({
           date,
-          amount: data.amount,
-          count: data.count,
-        }))
-        .sort((a, b) => a.date.localeCompare(b.date));
-
+          amount,
+          count: 0,
+        }));
       setDailySpending(daily);
+
+      // 近4周对比
+      const weeks: { label: string; amount: number }[] = [];
+      for (let i = 3; i >= 0; i--) {
+        const weekEnd = new Date();
+        weekEnd.setDate(weekEnd.getDate() - i * 7);
+        const weekStart = new Date(weekEnd);
+        weekStart.setDate(weekStart.getDate() - 6);
+        const wStart = weekStart.toISOString().split('T')[0];
+        const wEnd = weekEnd.toISOString().split('T')[0];
+        const wData = await localDB.getTransactionsByDate(wStart, wEnd);
+        const wTotal = wData.reduce((s, t) => s + t.amount, 0);
+        weeks.push({ label: `第${4 - i}周`, amount: wTotal });
+      }
+      setWeeklyComparison(weeks);
+
     } catch (error) {
       console.error('Failed to load stats:', error);
     } finally {
       setLoading(false);
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
     }
-  }, [setTransactions]);
+  }, [setTransactions, fadeAnim]);
 
   useEffect(() => {
     loadStats();
@@ -129,152 +204,235 @@ export default function StatsScreen() {
     setRefreshing(false);
   }, [loadStats]);
 
-  // 渲染类别条目
-  const renderCategoryItem = (item: CategoryBreakdown, index: number) => (
-    <View key={item.category} style={styles.categoryItem}>
-      <View style={styles.categoryLeft}>
-        <View
-          style={[
-            styles.categoryDot,
-            { backgroundColor: CATEGORY_COLORS[item.category] || '#6B7280' },
-          ]}
-        />
-        <View>
-          <Text style={styles.categoryName}>{item.category}</Text>
-          <Text style={styles.categoryCount}>{item.count}笔</Text>
-        </View>
-      </View>
-      <View style={styles.categoryRight}>
-        <Text style={styles.categoryAmount}>¥{item.amount.toFixed(2)}</Text>
-        <Text style={styles.categoryPercent}>{item.percentage.toFixed(1)}%</Text>
-      </View>
-    </View>
-  );
+  if (loading) return <StatsSkeleton />;
 
-  // 渲染简单的条形图
-  const renderBarChart = () => {
-    const maxAmount = Math.max(...dailySpending.map((d) => d.amount), 1);
+  // 折线图数据
+  const lineLabels = dailySpending.map(d => {
+    const date = new Date(d.date);
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  });
+  const lineValues = dailySpending.map(d => d.amount);
 
-    return (
-      <View style={styles.chartContainer}>
-        <Text style={styles.chartTitle}>近7日消费趋势</Text>
-        <View style={styles.barsContainer}>
-          {dailySpending.map((day, index) => {
-            const barHeight = (day.amount / maxAmount) * 120;
-            const dayName = new Date(day.date).toLocaleDateString('zh-CN', {
-              weekday: 'short',
-            });
+  // 柱状图数据（周对比）
+  const barLabels = weeklyComparison.map(w => w.label);
+  const barValues = weeklyComparison.map(w => w.amount);
 
-            return (
-              <View key={day.date} style={styles.barWrapper}>
-                <View style={styles.barColumn}>
-                  <View
-                    style={[
-                      styles.bar,
-                      {
-                        height: Math.max(barHeight, 4),
-                        backgroundColor: day.amount > 0 ? '#3B82F6' : '#E5E7EB',
-                      },
-                    ]}
-                  />
-                  <Text style={styles.barValue}>
-                    {day.amount > 0 ? `${Math.round(day.amount)}` : ''}
-                  </Text>
-                </View>
-                <Text style={styles.barLabel}>{dayName}</Text>
-              </View>
-            );
-          })}
-        </View>
-      </View>
-    );
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3B82F6" />
-      </View>
-    );
-  }
+  // 饼图数据
+  const pieData = categoryBreakdown.slice(0, 5).map((c, i) => ({
+    name: c.category,
+    population: Math.round(c.amount),
+    color: CATEGORY_COLORS[c.category] || CHART_CONFIG.color(1),
+    legendFontColor: '#6B7280',
+    legendFontSize: 12,
+  }));
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#3B82F6']}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        {/* 头部统计 */}
-        <View style={styles.header}>
-          <Text style={styles.title">统计分析</Text>
-          <View style={styles.totalCard}>
-            <View style={styles.totalItem}>
-              <Text style={styles.totalLabel}>本月支出</Text>
-              <Text style={styles.totalAmount}>¥{totalSpent.toFixed(2)}</Text>
-            </View>
-            <View style={styles.totalDivider} />
-            <View style={styles.totalItem}>
-              <Text style={styles.totalLabel}>消费笔数</Text>
-              <Text style={styles.totalAmount}>{transactions.length}</Text>
+      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        <ScrollView
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          {/* 顶部标题 + 汇总 */}
+          <View style={styles.header}>
+            <Text style={styles.pageTitle}>统计分析</Text>
+            <View style={styles.totalCard}>
+              <View style={styles.totalItem}>
+                <Text style={styles.totalLabel}>本月支出</Text>
+                <Text style={styles.totalAmount}>¥{totalSpent.toFixed(2)}</Text>
+              </View>
+              <View style={styles.totalDivider} />
+              <View style={styles.totalItem}>
+                <Text style={styles.totalLabel}>消费笔数</Text>
+                <Text style={styles.totalAmount}>{transactionCount}</Text>
+              </View>
+              <View style={styles.totalDivider} />
+              <View style={styles.totalItem}>
+                <Text style={styles.totalLabel}>日均消费</Text>
+                <Text style={styles.totalAmount}>
+                  ¥{transactionCount > 0 ? (totalSpent / new Date().getDate()).toFixed(0) : '0'}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* 条形图 */}
-        {dailySpending.length > 0 && renderBarChart()}
+          {/* Tab 切换 */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'week' && styles.tabActive]}
+              onPress={() => setActiveTab('week')}
+            >
+              <Text style={[styles.tabText, activeTab === 'week' && styles.tabTextActive]}>
+                近7日趋势
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'month' && styles.tabActive]}
+              onPress={() => setActiveTab('month')}
+            >
+              <Text style={[styles.tabText, activeTab === 'month' && styles.tabTextActive]}>
+                周度对比
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-        {/* 类别分布 */}
-        <View style={styles.categorySection}>
-          <Text style={styles.sectionTitle}>类别分布</Text>
-          {categoryBreakdown.length > 0 ? (
-            categoryBreakdown.map((item, index) => renderCategoryItem(item, index))
-          ) : (
-            <View style={styles.emptyCategory}>
-              <Ionicons name="pie-chart-outline" size={48} color="#D1D5DB" />
-              <Text style={styles.emptyText}>暂无消费数据</Text>
+          {/* 折线图 / 柱状图 */}
+          <View style={styles.section}>
+            {activeTab === 'week' ? (
+              <>
+                <Text style={styles.sectionTitle}>近7日消费趋势</Text>
+                {lineValues.some(v => v > 0) ? (
+                  <LineChart
+                    data={{
+                      labels: lineLabels,
+                      datasets: [{ data: lineValues }],
+                    }}
+                    width={CHART_WIDTH}
+                    height={200}
+                    chartConfig={CHART_CONFIG}
+                    bezier
+                    style={styles.chartStyle}
+                    withInnerLines={true}
+                    withOuterLines={false}
+                    withDots={true}
+                    withShadow={false}
+                    fromZero
+                  />
+                ) : (
+                  <View style={styles.emptyChart}>
+                    <Ionicons name="trending-up-outline" size={40} color="#D1D5DB" />
+                    <Text style={styles.emptyText}>近7日暂无消费数据</Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              <>
+                <Text style={styles.sectionTitle}>近4周消费对比</Text>
+                {barValues.some(v => v > 0) ? (
+                  <BarChart
+                    data={{
+                      labels: barLabels,
+                      datasets: [{ data: barValues }],
+                    }}
+                    width={CHART_WIDTH}
+                    height={200}
+                    chartConfig={{
+                      ...CHART_CONFIG,
+                      color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
+                    }}
+                    style={styles.chartStyle}
+                    showValuesOnTopOfBars={true}
+                    withInnerLines={true}
+                    yAxisLabel="¥"
+                    yAxisSuffix=""
+                    fromZero
+                  />
+                ) : (
+                  <View style={styles.emptyChart}>
+                    <Ionicons name="bar-chart-outline" size={40} color="#D1D5DB" />
+                    <Text style={styles.emptyText}>暂无消费数据</Text>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+
+          {/* 类别饼图 */}
+          {pieData.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>消费类别分布</Text>
+              <PieChart
+                data={pieData}
+                width={CHART_WIDTH}
+                height={200}
+                chartConfig={CHART_CONFIG}
+                accessor="population"
+                backgroundColor="transparent"
+                paddingLeft="15"
+                absolute
+              />
             </View>
           )}
-        </View>
 
-        {/* 智能洞察 */}
-        {categoryBreakdown.length > 0 && (
-          <View style={styles.insightsSection}>
-            <Text style={styles.sectionTitle}>智能洞察</Text>
-            <View style={styles.insightCard}>
-              <Ionicons name="bulb" size={20} color="#F59E0B" />
+          {/* 类别明细列表 */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>类别明细</Text>
+            {categoryBreakdown.length > 0 ? (
+              categoryBreakdown.map((item) => (
+                <View key={item.category} style={styles.categoryItem}>
+                  <View style={styles.categoryLeft}>
+                    <View
+                      style={[
+                        styles.categoryDot,
+                        { backgroundColor: CATEGORY_COLORS[item.category] || '#6B7280' },
+                      ]}
+                    />
+                    <View>
+                      <Text style={styles.categoryName}>{item.category}</Text>
+                      <Text style={styles.categoryCount}>{item.count}笔</Text>
+                    </View>
+                  </View>
+                  <View style={styles.categoryRight}>
+                    <Text style={styles.categoryAmount}>¥{item.amount.toFixed(2)}</Text>
+                    <View style={styles.categoryBarWrap}>
+                      <View
+                        style={[
+                          styles.categoryBar,
+                          {
+                            width: `${item.percentage}%` as any,
+                            backgroundColor: CATEGORY_COLORS[item.category] || '#6B7280',
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.categoryPercent}>{item.percentage.toFixed(1)}%</Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyChart}>
+                <Ionicons name="pie-chart-outline" size={48} color="#D1D5DB" />
+                <Text style={styles.emptyText}>暂无消费数据</Text>
+              </View>
+            )}
+          </View>
+
+          {/* 智能洞察 */}
+          {categoryBreakdown.length > 0 && (
+            <View style={[styles.section, styles.insightSection]}>
+              <View style={styles.insightHeader}>
+                <Ionicons name="bulb" size={18} color="#F59E0B" />
+                <Text style={styles.insightTitle}>智能洞察</Text>
+              </View>
               <Text style={styles.insightText}>
                 {generateInsight(categoryBreakdown, totalSpent)}
               </Text>
             </View>
-          </View>
-        )}
-      </ScrollView>
+          )}
+
+          <View style={{ height: 24 }} />
+        </ScrollView>
+      </Animated.View>
     </SafeAreaView>
   );
 }
 
-// 生成智能洞察
 function generateInsight(breakdown: CategoryBreakdown[], total: number): string {
-  if (breakdown.length === 0) {
-    return '还没有消费数据，快去记录第一笔吧！';
-  }
-
-  const topCategory = breakdown[0];
-  const insights = [
-    `本月"${topCategory.category}"支出最多，占总消费的${topCategory.percentage.toFixed(1)}%，共${topCategory.count}笔。`,
-    `建议关注${topCategory.category}类消费，合理规划预算能帮助更好地控制支出。`,
-    total > 3000
-      ? '本月消费较高，建议检查各类别支出是否合理。'
-      : '本月消费控制在合理范围内，继续保持！',
+  if (breakdown.length === 0) return '还没有消费数据，快去记录第一笔吧！';
+  const top = breakdown[0];
+  const lines = [
+    `本月「${top.category}」支出最高，占总消费 ${top.percentage.toFixed(1)}%，共 ${top.count} 笔。`,
   ];
-
-  return insights.join('\n\n');
+  if (total > 5000) {
+    lines.push('本月消费偏高，建议回顾各类别支出，适当控制非必要开销。');
+  } else if (total > 2000) {
+    lines.push('消费节奏正常，继续保持良好的记账习惯。');
+  } else {
+    lines.push('本月消费较少，理财意识很棒！');
+  }
+  return lines.join('\n\n');
 }
 
 const styles = StyleSheet.create({
@@ -282,90 +440,71 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F9FAFB',
-  },
   header: {
     padding: 20,
+    paddingBottom: 16,
     backgroundColor: '#FFFFFF',
   },
-  title: {
+  pageTitle: {
     fontSize: 28,
     fontWeight: '700',
     color: '#1F2937',
+    marginBottom: 16,
   },
   totalCard: {
     flexDirection: 'row',
-    marginTop: 16,
-    padding: 16,
     backgroundColor: '#3B82F6',
     borderRadius: 16,
+    padding: 16,
   },
   totalItem: {
     flex: 1,
     alignItems: 'center',
   },
   totalLabel: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.75)',
+    marginBottom: 4,
   },
   totalAmount: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginTop: 4,
   },
   totalDivider: {
     width: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    marginHorizontal: 16,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    marginHorizontal: 4,
   },
-  chartContainer: {
-    margin: 16,
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-  },
-  chartTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  barsContainer: {
+  tabContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    height: 160,
-  },
-  barWrapper: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  barColumn: {
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    height: 140,
-  },
-  bar: {
-    width: 20,
-    borderRadius: 4,
-  },
-  barValue: {
-    fontSize: 10,
-    color: '#6B7280',
-    marginTop: 4,
-  },
-  barLabel: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    marginTop: 8,
-  },
-  categorySection: {
     margin: 16,
+    marginBottom: 0,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  tabActive: {
+    backgroundColor: '#EFF6FF',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#9CA3AF',
+  },
+  tabTextActive: {
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
+  section: {
+    margin: 16,
+    marginBottom: 0,
     padding: 16,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -376,48 +515,11 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 16,
   },
-  categoryItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+  chartStyle: {
+    borderRadius: 8,
+    marginLeft: -8,
   },
-  categoryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  categoryDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 12,
-  },
-  categoryName: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#1F2937',
-  },
-  categoryCount: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 2,
-  },
-  categoryRight: {
-    alignItems: 'flex-end',
-  },
-  categoryAmount: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  categoryPercent: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 2,
-  },
-  emptyCategory: {
+  emptyChart: {
     alignItems: 'center',
     paddingVertical: 32,
   },
@@ -426,22 +528,79 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginTop: 8,
   },
-  insightsSection: {
-    margin: 16,
-    marginTop: 0,
-    padding: 16,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 16,
-  },
-  insightCard: {
+  categoryItem: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F9FAFB',
+  },
+  categoryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  categoryDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  categoryName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1F2937',
+  },
+  categoryCount: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  categoryRight: {
+    alignItems: 'flex-end',
+    minWidth: 110,
+  },
+  categoryAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  categoryBarWrap: {
+    width: 80,
+    height: 4,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 2,
+    marginBottom: 2,
+  },
+  categoryBar: {
+    height: 4,
+    borderRadius: 2,
+  },
+  categoryPercent: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  insightSection: {
+    backgroundColor: '#FFFBEB',
+    borderLeftWidth: 3,
+    borderLeftColor: '#F59E0B',
+  },
+  insightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  insightTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#92400E',
+    marginLeft: 6,
   },
   insightText: {
-    flex: 1,
     fontSize: 14,
-    color: '#92400E',
+    color: '#78350F',
     lineHeight: 22,
-    marginLeft: 8,
   },
 });

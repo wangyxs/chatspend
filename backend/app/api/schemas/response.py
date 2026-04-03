@@ -1,6 +1,6 @@
 """
 后端驱动的UI响应Schema
-参考王自如AI产品的薄客户端架构
+参考优质AI产品的薄客户端架构
 """
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional, Union
@@ -145,7 +145,7 @@ class ChatResponse(BaseModel):
     """
     统一对话响应格式
     
-    参考王自如AI产品设计理念：
+    参考优质AI产品设计理念：
     - 后端驱动渲染
     - 前端薄客户端
     - 组件化响应

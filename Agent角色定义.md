@@ -1372,7 +1372,7 @@ Output:
 - 丰富的示例场景
 - 规范的输出格式
 
-这种设计遵循了王自如的架构理念：
+这种设计遵循了优质AI产品的架构理念：
 - **DDD领域驱动**: 每个Agent负责一个业务域
 - **Smart Agent, Dumb Tools**: Agent负责推理决策，工具只做执行
 - **Plan-and-Execute**: Orchestrator生成计划，专项Agent执行

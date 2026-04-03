@@ -434,7 +434,7 @@ class OrchestratorAgent:
         2. Execute: 路由到Agent执行
         3. Respond: 使用ResponseBuilder生成UI响应
         
-        参考王自如AI产品设计理念：
+        参考优质AI产品设计理念：
         - 后端决定展示什么组件
         - 前端只负责渲染
         - 无缝对话体验
