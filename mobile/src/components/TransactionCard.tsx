@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Transaction } from '@/types';
 
 // 类别图标和颜色映射
-const CATEGORY_CONFIG: Record<string, { icon: string; color: string }> = {
+export const CATEGORY_CONFIG: Record<string, { icon: string; color: string }> = {
   '餐饮': { icon: '🍔', color: '#F59E0B' },
   '交通': { icon: '🚗', color: '#3B82F6' },
   '购物': { icon: '🛒', color: '#EC4899' },
@@ -19,14 +19,19 @@ const CATEGORY_CONFIG: Record<string, { icon: string; color: string }> = {
 interface TransactionCardProps {
   transaction: Transaction;
   compact?: boolean;
+  onPress?: (transaction: Transaction) => void;
 }
 
-export default function TransactionCard({ transaction, compact = false }: TransactionCardProps) {
+export default function TransactionCard({ transaction, compact = false, onPress }: TransactionCardProps) {
   const config = CATEGORY_CONFIG[transaction.category] || CATEGORY_CONFIG['其他'];
 
   if (compact) {
     return (
-      <View style={styles.compactContainer}>
+      <TouchableOpacity
+        style={styles.compactContainer}
+        onPress={() => onPress?.(transaction)}
+        activeOpacity={0.7}
+      >
         <View style={[styles.compactIcon, { backgroundColor: config.color + '20' }]}>
           <Text style={styles.iconText}>{config.icon}</Text>
         </View>
@@ -39,12 +44,16 @@ export default function TransactionCard({ transaction, compact = false }: Transa
         <Text style={[styles.compactAmount, { color: config.color }]}>
           -¥{transaction.amount.toFixed(2)}
         </Text>
-      </View>
+      </TouchableOpacity>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <TouchableOpacity
+      style={styles.container}
+      onPress={() => onPress?.(transaction)}
+      activeOpacity={0.7}
+    >
       {/* 头部：类别和金额 */}
       <View style={styles.header}>
         <View style={styles.categoryContainer}>
@@ -79,7 +88,7 @@ export default function TransactionCard({ transaction, compact = false }: Transa
           </View>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 

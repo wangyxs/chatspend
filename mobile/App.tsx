@@ -4,6 +4,7 @@ import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import AppNavigator from '@/navigation/AppNavigator';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { localDB } from '@/services/storage';
 import { useTransactionStore } from '@/stores/transactionStore';
 import { notificationService } from '@/services/notifications';
@@ -58,8 +59,10 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="auto" />
-      <AppNavigator />
+      <ErrorBoundary>
+        <StatusBar style="auto" />
+        <AppNavigator />
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }

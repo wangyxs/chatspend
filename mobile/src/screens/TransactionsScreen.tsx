@@ -12,7 +12,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import TransactionCard from '@/components/TransactionCard';
+import TransactionActionModal from '@/components/TransactionActionModal';
+import Toast from '@/components/Toast';
 import { useTransactionStore } from '@/stores/transactionStore';
+import { useToastStore } from '@/stores/toastStore';
 import { localDB } from '@/services/storage';
 import { Transaction, TimeRange } from '@/types';
 
@@ -20,8 +23,11 @@ export default function TransactionsScreen() {
   const [timeRange, setTimeRange] = useState<TimeRange>('month');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
-  const { transactions, setTransactions } = useTransactionStore();
+  const { transactions, setTransactions, updateTransaction, deleteTransaction } = useTransactionStore();
+  const { visible, message, type, hide } = useToastStore();
 
   // 获取日期范围
   const getDateRange = useCallback((range: TimeRange): { start: string; end: string } => {
@@ -81,6 +87,26 @@ export default function TransactionsScreen() {
   // 计算总金额
   const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
 
+  // 点击交易卡片
+  const handleTransactionPress = (transaction: Transaction) => {
+    setSelectedTransaction(transaction);
+    setModalVisible(true);
+  };
+
+  // 更新交易
+  const handleUpdateTransaction = async (id: string, updates: Partial<Transaction>) => {
+    await localDB.updateTransaction(id, updates);
+    updateTransaction(id, updates);
+    useToastStore.getState().show('已更新', 'success');
+  };
+
+  // 删除交易
+  const handleDeleteTransaction = async (id: string) => {
+    await localDB.deleteTransaction(id);
+    deleteTransaction(id);
+    useToastStore.getState().show('已删除', 'success');
+  };
+
   // 按日期分组
   const groupedTransactions = transactions.reduce((groups, transaction) => {
     const date = transaction.transactionDate;
@@ -135,7 +161,7 @@ export default function TransactionsScreen() {
 
   // 渲染交易项
   const renderTransaction = ({ item, section }: any) => (
-    <TransactionCard transaction={item} compact />
+    <TransactionCard transaction={item} compact onPress={handleTransactionPress} />
   );
 
   // 空状态
@@ -177,7 +203,12 @@ export default function TransactionsScreen() {
           <View style={styles.section}>
             {renderSectionHeader({ item })}
             {item.data.map((transaction: Transaction) => (
-              <TransactionCard key={transaction.id} transaction={transaction} compact />
+              <TransactionCard 
+                key={transaction.id} 
+                transaction={transaction} 
+                compact 
+                onPress={handleTransactionPress}
+              />
             ))}
           </View>
         )}
@@ -191,6 +222,26 @@ export default function TransactionsScreen() {
         }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+      />
+
+      {/* 编辑模态框 */}
+      <TransactionActionModal
+        visible={modalVisible}
+        transaction={selectedTransaction}
+        onClose={() => {
+          setModalVisible(false);
+          setSelectedTransaction(null);
+        }}
+        onUpdate={handleUpdateTransaction}
+        onDelete={handleDeleteTransaction}
+      />
+
+      {/* Toast 提示 */}
+      <Toast
+        visible={visible}
+        message={message}
+        type={type}
+        onHide={hide}
       />
     </SafeAreaView>
   );
