@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from '@/navigation/AppNavigator';
 import { localDB } from '@/services/storage';
 import { useTransactionStore } from '@/stores/transactionStore';
+import { notificationService } from '@/services/notifications';
 
 export default function App() {
   const [isReady, setIsReady] = useState(false);
@@ -20,6 +21,13 @@ export default function App() {
         // 加载本地数据
         const transactions = await localDB.getAllTransactions();
         useTransactionStore.getState().setTransactions(transactions);
+        
+        // 初始化通知服务
+        const hasPermission = await notificationService.requestPermissions();
+        if (hasPermission) {
+          // 安排每周消费报告
+          await notificationService.scheduleWeeklyReport();
+        }
         
         setIsReady(true);
       } catch (e) {
