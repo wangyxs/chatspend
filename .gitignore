@@ -66,3 +66,6 @@ logs/
 coverage/
 .coverage
 htmlcov/
+
+# Reference documents (keep private)
+王自如AI_*.docx

@@ -183,6 +183,113 @@ class LLMClient:
         except json.JSONDecodeError:
             logger.error(f"实体提取JSON解析失败: {response}")
             return {}
+    
+    async def transcribe_audio(self, audio_path: str) -> str:
+        """
+        语音转文字
+        
+        使用 OpenAI Whisper API
+        
+        Args:
+            audio_path: 音频文件路径
+            
+        Returns:
+            转录的文字
+        """
+        try:
+            with open(audio_path, "rb") as audio_file:
+                transcript = await self.client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    language="zh"
+                )
+            
+            return transcript.text
+            
+        except Exception as e:
+            logger.error(f"语音识别失败: {e}")
+            raise
+    
+    async def recognize_image(self, image_data: bytes) -> Dict[str, Any]:
+        """
+        图片识别
+        
+        使用 GPT-4 Vision API
+        
+        Args:
+            image_data: 图片二进制数据
+            
+        Returns:
+            识别的交易信息
+        """
+        import base64
+        import json
+        
+        try:
+            # Base64编码图片
+            base64_image = base64.b64encode(image_data).decode('utf-8')
+            
+            # 调用 GPT-4 Vision
+            response = await self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": """请识别这张图片中的交易信息（小票、账单、订单截图等）。
+
+请以JSON格式返回：
+{
+    "transactions": [
+        {
+            "amount": 金额（数字）,
+            "category": "消费类别（餐饮/交通/购物/娱乐/其他）",
+            "description": "消费描述",
+            "date": "日期（YYYY-MM-DD格式，如无法识别则为今天）"
+        }
+    ],
+    "raw_text": "图片中的原始文字"
+}
+
+如果没有识别到交易信息，请返回：
+{
+    "transactions": [],
+    "raw_text": "识别到的文字内容"
+}
+
+只返回JSON，不要返回其他内容。"""
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=1000
+            )
+            
+            # 解析响应
+            result_text = response.choices[0].message.content
+            
+            # 尝试解析JSON
+            try:
+                return json.loads(result_text)
+            except json.JSONDecodeError:
+                # 提取JSON部分
+                import re
+                json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
+                if json_match:
+                    return json.loads(json_match.group())
+                return {"transactions": [], "raw_text": result_text}
+            
+        except Exception as e:
+            logger.error(f"图片识别失败: {e}")
+            raise
 
 
 # 全局LLM客户端实例

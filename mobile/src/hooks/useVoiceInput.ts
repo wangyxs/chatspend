@@ -1,10 +1,16 @@
-import { useState, useCallback } from 'react';
+/**
+ * 语音输入 Hook
+ * 
+ * 使用 expo-av 实现录音功能
+ */
+import { useState, useRef, useCallback } from 'react';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 
 interface UseVoiceInputOptions {
   onResult?: (text: string) => void;
   onError?: (error: Error) => void;
+  maxDuration?: number; // 最大录音时长（毫秒）
 }
 
 interface UseVoiceInputReturn {
@@ -12,140 +18,145 @@ interface UseVoiceInputReturn {
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<string | null>;
   cancelRecording: () => Promise<void>;
-  hasPermission: boolean;
-  requestPermission: () => Promise<boolean>;
+  recordingDuration: number;
 }
 
-export function useVoiceInput(options?: UseVoiceInputOptions): UseVoiceInputReturn {
+export function useVoiceInput(options: UseVoiceInputOptions = {}): UseVoiceInputReturn {
+  const { onResult, onError, maxDuration = 60000 } = options;
+  
   const [isRecording, setIsRecording] = useState(false);
-  const [hasPermission, setHasPermission] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState(0);
   
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number>(0);
+
   // 请求录音权限
-  const requestPermission = useCallback(async (): Promise<boolean> => {
-    try {
-      const { status } = await Audio.requestPermissionsAsync();
-      const granted = status === 'granted';
-      setHasPermission(granted);
-      return granted;
-    } catch (error) {
-      console.error('Failed to request audio permission:', error);
-      return false;
-    }
-  }, []);
-  
+  const requestPermission = async (): Promise<boolean> => {
+    const { status } = await Audio.requestPermissionsAsync();
+    return status === 'granted';
+  };
+
   // 开始录音
-  const startRecording = useCallback(async (): Promise<void> => {
+  const startRecording = useCallback(async () => {
     try {
       // 检查权限
+      const hasPermission = await requestPermission();
       if (!hasPermission) {
-        const granted = await requestPermission();
-        if (!granted) {
-          throw new Error('录音权限未授予');
-        }
+        throw new Error('麦克风权限未授权');
       }
-      
+
       // 设置音频模式
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
         shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false
+        playThroughEarpieceAndroid: false,
       });
-      
-      // 开始录音
-      const { recording: newRecording } = await Audio.Recording.createAsync(
+
+      // 创建录音实例
+      const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
-      
-      setRecording(newRecording);
+
+      recordingRef.current = recording;
       setIsRecording(true);
-      
-      console.log('Recording started');
+      startTimeRef.current = Date.now();
+
+      // 更新录音时长
+      durationIntervalRef.current = setInterval(() => {
+        const elapsed = Date.now() - startTimeRef.current;
+        setRecordingDuration(elapsed);
+
+        // 达到最大时长自动停止
+        if (elapsed >= maxDuration) {
+          stopRecording();
+        }
+      }, 100);
+
     } catch (error) {
-      console.error('Failed to start recording:', error);
-      options?.onError?.(error as Error);
-      throw error;
+      console.error('开始录音失败:', error);
+      onError?.(error as Error);
+      setIsRecording(false);
     }
-  }, [hasPermission, requestPermission, options]);
-  
-  // 停止录音并获取URI
+  }, [maxDuration, onError]);
+
+  // 停止录音
   const stopRecording = useCallback(async (): Promise<string | null> => {
     try {
-      if (!recording) {
-        return null;
+      if (!recordingRef.current) return null;
+
+      // 停止录音
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
+
+      // 清除计时器
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+        durationIntervalRef.current = null;
       }
-      
-      console.log('Stopping recording...');
+
       setIsRecording(false);
-      
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      
-      // 重置音频模式
+      setRecordingDuration(0);
+
+      // 恢复音频模式
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
-        playsInSilentModeIOS: false
+        playsInSilentModeIOS: false,
       });
-      
-      setRecording(null);
-      
-      console.log('Recording stopped, URI:', uri);
-      
-      if (uri && options?.onResult) {
-        // 这里可以调用语音识别API
-        // 暂时返回URI，后续集成Whisper
-        options.onResult(uri);
+
+      if (!uri) {
+        throw new Error('录音文件获取失败');
       }
-      
+
+      // 返回录音文件 URI
       return uri;
+
     } catch (error) {
-      console.error('Failed to stop recording:', error);
-      options?.onError?.(error as Error);
+      console.error('停止录音失败:', error);
+      onError?.(error as Error);
       setIsRecording(false);
-      setRecording(null);
       return null;
     }
-  }, [recording, options]);
-  
+  }, [onError]);
+
   // 取消录音
-  const cancelRecording = useCallback(async (): Promise<void> => {
+  const cancelRecording = useCallback(async () => {
     try {
-      if (!recording) {
-        return;
+      if (!recordingRef.current) return;
+
+      // 停止并删除录音
+      await recordingRef.current.stopAndUnloadAsync();
+      recordingRef.current = null;
+
+      // 清除计时器
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+        durationIntervalRef.current = null;
       }
-      
+
       setIsRecording(false);
-      await recording.stopAndUnloadAsync();
-      
-      // 重置音频模式
+      setRecordingDuration(0);
+
+      // 恢复音频模式
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
-        playsInSilentModeIOS: false
+        playsInSilentModeIOS: false,
       });
-      
-      // 删除录音文件
-      const uri = recording.getURI();
-      if (uri) {
-        await FileSystem.deleteAsync(uri, { idempotent: true });
-      }
-      
-      setRecording(null);
-      console.log('Recording cancelled');
+
     } catch (error) {
-      console.error('Failed to cancel recording:', error);
-      setIsRecording(false);
-      setRecording(null);
+      console.error('取消录音失败:', error);
+      onError?.(error as Error);
     }
-  }, [recording]);
-  
+  }, [onError]);
+
   return {
     isRecording,
     startRecording,
     stopRecording,
     cancelRecording,
-    hasPermission,
-    requestPermission
+    recordingDuration,
   };
 }

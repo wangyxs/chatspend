@@ -142,6 +142,31 @@ class APIService {
   // ==================== 语音和图片接口 ====================
   
   /**
+   * 语音转文字（仅识别，不创建交易）
+   * @param audioUri 音频文件URI
+   */
+  async transcribeAudio(audioUri: string): Promise<{ text: string }> {
+    const formData = new FormData();
+    formData.append('audio', {
+      uri: audioUri,
+      type: 'audio/m4a',
+      name: 'recording.m4a'
+    } as any);
+    
+    const response = await this.client.post<{ text: string }>(
+      '/transcribe',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    );
+    
+    return response.data;
+  }
+  
+  /**
    * 语音识别并创建交易
    * @param audioUri 音频文件URI
    */
@@ -155,6 +180,31 @@ class APIService {
     
     const response = await this.client.post<CreateTransactionResponse>(
       '/transactions/voice',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    );
+    
+    return response.data;
+  }
+  
+  /**
+   * 图片识别（仅识别，不创建交易）
+   * @param imageUri 图片URI
+   */
+  async recognizeImage(imageUri: string): Promise<{ transactions: any[] }> {
+    const formData = new FormData();
+    formData.append('image', {
+      uri: imageUri,
+      type: 'image/jpeg',
+      name: 'receipt.jpg'
+    } as any);
+    
+    const response = await this.client.post<{ transactions: any[] }>(
+      '/recognize',
       formData,
       {
         headers: {
